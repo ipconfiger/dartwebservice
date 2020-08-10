@@ -32,9 +32,11 @@ class WebService {
   String wsdl;
   XmlDocument difinations;
   Map<String, TransType> types;
+  List<Interface> interfacies;
   WebService.fromWsdl(this.wsdl) {
     this.difinations = XmlDocument.parse(this.wsdl);
     this.types = new Map<String, TransType>();
+    this.interfacies = new List<Interface>();
   }
 
   void execute() {
@@ -86,6 +88,7 @@ class WebService {
                  print('outputtype: $outName');
                }
              });
+             interfacies.add(ins);
            }
          });
       }
