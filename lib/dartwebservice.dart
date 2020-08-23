@@ -8,6 +8,18 @@ class InvalidDefinationException implements Exception {
   String errMsg() => this.error;
 }
 
+class InvalidInvokeException implements Exception {
+  String error;
+  InvalidInvokeException(this.error);
+  String errMsg() => this.error;
+}
+
+class InvalidParameterException implements Exception {
+  String error;
+  InvalidParameterException(this.error);
+  String errMsg() => this.error;
+}
+
 class TransParameter {
   String parameterName;
   String typeDefinition;
@@ -18,8 +30,10 @@ class TransType {
   String typeName;
   bool isComplex;
   List<TransParameter> parameters;
+  Map<String, bool> paramsMap;
   TransType(this.typeName) {
     this.parameters = new List<TransParameter>();
+    this.paramsMap = new Map<String, bool>();
   }
 }
 
@@ -42,16 +56,50 @@ class WebService {
   XmlDocument difinations;
   Map<String, TransType> types;
   Map<String, ComplexType> complexTypes;
+  Map<String, Interface> interfaceMap;
   List<Interface> interfacies;
+  XmlDocument soapRoot;
+
   WebService.fromWsdl(this.wsdl) {
     this.difinations = XmlDocument.parse(this.wsdl);
     this.types = new Map<String, TransType>();
     this.interfacies = new List<Interface>();
+    this.interfaceMap = new Map<String, Interface>();
     this.complexTypes = new Map<String, ComplexType>();
+    this.soapRoot = new XmlDocument();
   }
 
-  String makeSoap(
-      Map<String, String> parameters, Map<String, String> payload) {}
+  String makeSoap(String name, Map<String, String> parameters,
+      Map<String, String> payload) {
+    this.execute();
+    if (!this.interfaceMap.containsKey(name)) {
+      throw InvalidInvokeException('Invalid method');
+    }
+    final builder = XmlBuilder();
+    builder.processing('xml', 'version="1.0"');
+    builder.element('soap12:Envelope', nest: () {
+      builder.attribute(
+          'xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+      builder.attribute('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema');
+      builder.attribute(
+          'xmlns:soap12', 'http://www.w3.org/2003/05/soap-envelope');
+      builder.element('soap12:Body', nest: () {
+        builder.element(name, nest: () {
+          final interface = this.interfaceMap[name];
+          for (var pname in parameters.keys) {
+            if (!interface.inputs.paramsMap.containsKey(pname)) {
+              throw InvalidParameterException('$pname not in parameters list');
+            }
+            builder.element(pname, nest: () {
+              builder.text(parameters[pname]);
+            });
+          }
+        });
+      });
+    });
+    final bookshelfXml = builder.buildDocument();
+    print('xml:$bookshelfXml');
+  }
 
   void execute() {
     this.difinations.descendants.forEach((node) {
@@ -64,7 +112,7 @@ class WebService {
             continue;
           }
           final typeName = el.getAttribute('name');
-          print('type name:$typeName');
+          //print('type name:$typeName');
           final tp = ComplexType(typeName);
           if (el.firstElementChild == null) {
             continue;
@@ -95,15 +143,19 @@ class WebService {
           if (subnode.toString().startsWith('<wsdl:part')) {
             if (subnode.getAttribute('element') != null) {
               final elementName = subnode.getAttribute('element').split(':')[1];
-              print('part name:$elementName');
+              //print('part name:$elementName');
               if (this.complexTypes.containsKey(elementName)) {
                 tp.isComplex = true;
-                tp.parameters.addAll(this.complexTypes[elementName].propertys);
+                this.complexTypes[elementName].propertys.forEach((p) {
+                  tp.parameters.add(p);
+                  tp.paramsMap[p.parameterName] = true;
+                });
               }
             } else {
               final p = new TransParameter(
                   subnode.getAttribute('name'), subnode.getAttribute('type'));
               tp.parameters.add(p);
+              tp.paramsMap[p.parameterName] = true;
             }
           }
         });
@@ -117,7 +169,7 @@ class WebService {
           if (child.toString().startsWith('<wsdl:operation')) {
             final name = child.getAttribute('name');
             final paramsOrder = child.getAttribute('parameterOrder');
-            print('interface $name, params:$paramsOrder');
+            //print('interface $name, params:$paramsOrder');
             Interface ins = new Interface();
             ins.interfaceName = name;
             child.children.forEach((sub) {
@@ -129,7 +181,7 @@ class WebService {
                       'Message $inputName not found');
                 }
                 ins.inputs = this.types[inputName];
-                print('inputtype: $inputName');
+                //print('inputtype: $inputName');
               }
               if (sub.toString().startsWith('<wsdl:output')) {
                 // 获取到输出定义
@@ -139,14 +191,16 @@ class WebService {
                       'Message $outName not found');
                 }
                 ins.outputs = this.types[outName];
-                print('outputtype: $outName');
+                //print('outputtype: $outName');
               }
             });
             interfacies.add(ins);
+            this.interfaceMap[name] = ins;
           }
         });
       }
     });
+    /*
     this.interfacies.forEach((interface) {
       print('interface:${interface.interfaceName}');
       print('input type:${interface.inputs.typeName}');
@@ -160,5 +214,6 @@ class WebService {
             '\t param name:${param.parameterName} or type:${param.typeDefinition}');
       });
     });
+    */
   }
 }

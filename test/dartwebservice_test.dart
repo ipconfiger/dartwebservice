@@ -8,6 +8,11 @@ void main() {
     webservice.execute();
     expect(true, true);
   });
+  test('make soap', () {
+    final webservice = WebService.fromWsdl(wsdlString);
+    webservice.makeSoap('write', {'xmlDoc': 'heiheiheihi'}, {});
+    expect(true, true);
+  });
 }
 
 final wsdlString = '''<?xml version="1.0" encoding="utf-8"?>
