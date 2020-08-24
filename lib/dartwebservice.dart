@@ -117,6 +117,9 @@ class WebService {
           if (el.firstElementChild == null) {
             continue;
           }
+          if (el.firstElementChild.firstElementChild == null) {
+            continue;
+          }
           final propertyList =
               el.firstElementChild.firstElementChild.children.toList();
           for (var property in propertyList) {
@@ -200,7 +203,7 @@ class WebService {
         });
       }
     });
-    /*
+
     this.interfacies.forEach((interface) {
       print('interface:${interface.interfaceName}');
       print('input type:${interface.inputs.typeName}');
@@ -214,6 +217,5 @@ class WebService {
             '\t param name:${param.parameterName} or type:${param.typeDefinition}');
       });
     });
-    */
   }
 }
