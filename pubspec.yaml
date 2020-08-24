@@ -1,6 +1,6 @@
 name: dartwebservice
 description: utils for access webservice with dart lang.
-version: 0.0.2
+version: 0.0.3
 author:
 homepage: https://github.com/ipconfiger/dartwebservice
 

@@ -1,6 +1,7 @@
 library dartwebservice;
 
 import 'package:xml/xml.dart';
+import 'wsdl.dart';
 
 class InvalidDefinationException implements Exception {
   String error;
@@ -51,6 +52,144 @@ class Interface {
   TransType outputs;
 }
 
+class Param {
+  String name;
+  String type;
+  Param(this.name, this.type);
+}
+
+class Method {
+  String name;
+  String inputName;
+  List<Param> inputParams;
+  String outputName;
+  List<Param> outputParams;
+  Method(this.name) {
+    this.inputParams = new List<Param>();
+    this.outputParams = new List<Param>();
+  }
+}
+
+class AccessPoint {
+  String name;
+  String address;
+  List<Method> methods;
+  AccessPoint(this.name, this.address) {
+    this.methods = new List<Method>();
+  }
+
+  String makeSoap(String method, Map<String, String> params) {
+    Method m;
+    this.methods.forEach((md) {
+      if (md.name == method) {
+        m = md;
+      }
+    });
+    if (m == null) {
+      throw InvalidInvokeException('Method $method not exists');
+    }
+
+    final builder = XmlBuilder();
+    builder.processing('xml', 'version="1.0"');
+    builder.element('soap12:Envelope', nest: () {
+      builder.attribute(
+          'xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+      builder.attribute('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema');
+      builder.attribute(
+          'xmlns:soap12', 'http://www.w3.org/2003/05/soap-envelope');
+      builder.element('soap12:Body', nest: () {
+        builder.element(method, nest: () {
+          for (var pname in m.inputParams) {
+            builder.element(pname.name, nest: () {
+              builder.text(
+                  params.containsKey(pname.name) ? params[pname.name] : "");
+            });
+          }
+        });
+      });
+    });
+    final xml = builder.buildDocument();
+    return xml.toXmlString();
+  }
+}
+
+class WebService2 {
+  String wsdlString;
+  WSDLDefination wsdlDefinition;
+  List<AccessPoint> accessPoints;
+  WebService2(this.wsdlString) {
+    this.wsdlDefinition = WSDLDefination(this.wsdlString);
+    this.accessPoints = new List<AccessPoint>();
+    this.wsdlDefinition.services.values.toList().forEach((service) {
+      service.accessPorts.forEach((accessPort) {
+        final accessPoints =
+            AccessPoint(accessPort.bindingName, accessPort.address);
+        //print('accessPoints:${accessPort.bindingName} ${accessPort.address}');
+        accessPort.portTypes.first.operationMethods
+            .forEach((methodName, operationMethods) {
+          //print(' method: $methodName ${operationMethods.input}');
+          final method = Method(operationMethods.name);
+          method.inputName = operationMethods.input.name;
+          operationMethods.input.parts.forEach((part) {
+            if (part.isComplex) {
+              if (part.typeName == 'ArrayOfString') {
+                method.outputParams
+                    .add(Param('ArrayOfString', 'ArrayOfString'));
+              } else {
+                final ctype = this.wsdlDefinition.complexTypes[part.typeName];
+                if (ctype != null && ctype.prototypes != NullThrownError()) {
+                  //print('want type:${part.typeName} got ${ctype.prototypes}');
+                  ctype.prototypes.forEach((key, value) {
+                    method.inputParams.add(Param(key, value));
+                  });
+                }
+              }
+            } else {
+              method.inputParams.add(Param(part.name, part.typeName));
+            }
+          });
+          method.outputName = operationMethods.output.name;
+          operationMethods.output.parts.forEach((part) {
+            if (part.isComplex) {
+              if (part.typeName == 'ArrayOfString') {
+                method.outputParams
+                    .add(Param('ArrayOfString', 'ArrayOfString'));
+              } else {
+                final ctype = this.wsdlDefinition.complexTypes[part.typeName];
+                if (ctype != null && ctype.prototypes != null) {
+                  ctype.prototypes.forEach((key, value) {
+                    method.outputParams.add(Param(key, value));
+                  });
+                }
+              }
+            } else {
+              method.outputParams.add(Param(part.name, part.typeName));
+            }
+          });
+          accessPoints.methods.add(method);
+        });
+        this.accessPoints.add(accessPoints);
+      });
+    });
+  }
+  void display() {
+    this.accessPoints.forEach((accessPoint) {
+      print('accessPoint:${accessPoint.name} url:${accessPoint.address}');
+      accessPoint.methods.forEach((method) {
+        print('    method:${method.name}');
+        print('        input:${method.inputName}');
+        method.inputParams.forEach((param) {
+          print('            param:${param.name} ${param.type}');
+        });
+        print('        output:${method.outputName}');
+        method.outputParams.forEach((param) {
+          print('            param:${param.name} ${param.type}');
+        });
+      });
+    });
+  }
+}
+
 class WebService {
   String wsdl;
   XmlDocument difinations;
@@ -99,6 +238,7 @@ class WebService {
     });
     final bookshelfXml = builder.buildDocument();
     print('xml:$bookshelfXml');
+    return bookshelfXml.toXmlString();
   }
 
   void execute() {
