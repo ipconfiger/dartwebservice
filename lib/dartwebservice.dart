@@ -1,6 +1,7 @@
 library dartwebservice;
 
 import 'package:xml/xml.dart';
+
 import 'wsdl.dart';
 
 class InvalidDefinationException implements Exception {
@@ -33,7 +34,7 @@ class TransType {
   List<TransParameter> parameters;
   Map<String, bool> paramsMap;
   TransType(this.typeName) {
-    this.parameters = new List<TransParameter>();
+    this.parameters = <TransParameter>[];
     this.paramsMap = new Map<String, bool>();
   }
 }
@@ -42,7 +43,7 @@ class ComplexType {
   String typeName;
   List<TransParameter> propertys;
   ComplexType(this.typeName) {
-    this.propertys = new List<TransParameter>();
+    this.propertys = <TransParameter>[];
   }
 }
 
@@ -65,30 +66,31 @@ class Method {
   String outputName;
   List<Param> outputParams;
   Method(this.name) {
-    this.inputParams = new List<Param>();
-    this.outputParams = new List<Param>();
+    this.inputParams = <Param>[];
+    this.outputParams = <Param>[];
   }
 }
 
 class AccessPoint {
+  String xmlns;
   String name;
   String address;
   List<Method> methods;
-  AccessPoint(this.name, this.address) {
-    this.methods = new List<Method>();
+  AccessPoint(this.xmlns, this.name, this.address) {
+    this.methods = <Method>[];
   }
 
   String makeSoap(String method, Map<String, String> params) {
     Method m;
-    this.methods.forEach((md) {
-      if (md.name == method) {
+    for (var md in this.methods) {
+      if (md.name.compareTo(method) > 0) {
         m = md;
+        break;
       }
-    });
+    }
     if (m == null) {
       throw InvalidInvokeException('Method $method not exists');
     }
-
     final builder = XmlBuilder();
     builder.processing('xml', 'version="1.0"');
     builder.element('soap12:Envelope', nest: () {
@@ -98,7 +100,7 @@ class AccessPoint {
       builder.attribute(
           'xmlns:soap12', 'http://www.w3.org/2003/05/soap-envelope');
       builder.element('soap12:Body', nest: () {
-        builder.element(method, nest: () {
+        builder.element(method, attributes: {'xmlns': xmlns}, nest: () {
           for (var pname in m.inputParams) {
             builder.element(pname.name, nest: () {
               builder.text(
@@ -119,11 +121,11 @@ class WebService2 {
   List<AccessPoint> accessPoints;
   WebService2(this.wsdlString) {
     this.wsdlDefinition = WSDLDefination(this.wsdlString);
-    this.accessPoints = new List<AccessPoint>();
+    this.accessPoints = <AccessPoint>[];
     this.wsdlDefinition.services.values.toList().forEach((service) {
       service.accessPorts.forEach((accessPort) {
-        final accessPoints =
-            AccessPoint(accessPort.bindingName, accessPort.address);
+        final accessPoints = AccessPoint(
+            wsdlDefinition.xmlns, accessPort.bindingName, accessPort.address);
         //print('accessPoints:${accessPort.bindingName} ${accessPort.address}');
         accessPort.portTypes.first.operationMethods
             .forEach((methodName, operationMethods) {
@@ -202,7 +204,7 @@ class WebService {
   WebService.fromWsdl(this.wsdl) {
     this.difinations = XmlDocument.parse(this.wsdl);
     this.types = new Map<String, TransType>();
-    this.interfacies = new List<Interface>();
+    this.interfacies = <Interface>[];
     this.interfaceMap = new Map<String, Interface>();
     this.complexTypes = new Map<String, ComplexType>();
     this.soapRoot = new XmlDocument();
@@ -225,6 +227,7 @@ class WebService {
       builder.element('soap12:Body', nest: () {
         builder.element(name, nest: () {
           final interface = this.interfaceMap[name];
+          print('interface:$name');
           for (var pname in parameters.keys) {
             if (!interface.inputs.paramsMap.containsKey(pname)) {
               throw InvalidParameterException('$pname not in parameters list');
@@ -311,8 +314,6 @@ class WebService {
         node.children.forEach((child) {
           if (child.toString().startsWith('<wsdl:operation')) {
             final name = child.getAttribute('name');
-            final paramsOrder = child.getAttribute('parameterOrder');
-            //print('interface $name, params:$paramsOrder');
             Interface ins = new Interface();
             ins.interfaceName = name;
             child.children.forEach((sub) {

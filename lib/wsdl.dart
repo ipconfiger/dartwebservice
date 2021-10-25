@@ -68,6 +68,7 @@ class WSDLService {
 
 class WSDLDefination {
   String wdslString;
+  String xmlns;
   XmlDocument difinations;
   Map<String, Type> complexTypes;
   Map<String, Binding> bindings;
@@ -86,6 +87,13 @@ class WSDLDefination {
   void execute() {
     this.difinations.children.forEach((root) {
       if (root.nodeType == XmlNodeType.ELEMENT) {
+        XmlElement rootElement = root;
+        for (var attr in rootElement.attributes) {
+          if (attr.name.toString() == 'xmlns:tns') {
+            this.xmlns = attr.value;
+            break;
+          }
+        }
         root.children.forEach((node) {
           if (node.nodeType == XmlNodeType.ELEMENT) {
             XmlElement element = node;
